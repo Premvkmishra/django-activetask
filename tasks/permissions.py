@@ -8,6 +8,10 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
 class IsAssignedContributor(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
+        # Contributors can only PATCH their own task's status
+        if request.method == 'PATCH':
+            return request.user == obj.assigned_to
+        # Allow safe methods (GET) only for assigned user
         if request.method in permissions.SAFE_METHODS:
             return request.user == obj.assigned_to
-        return request.user == obj.assigned_to and request.method == 'PATCH' 
+        return False 

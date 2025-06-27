@@ -45,7 +45,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def update(self, request, *args, **kwargs):
         # Only admins can do full update
-        if not request.user.is_staff and request.method == 'PUT':
+        if not request.user.is_staff:
             return Response({'detail': 'Only admins can fully update tasks.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
@@ -54,8 +54,18 @@ class TaskViewSet(viewsets.ModelViewSet):
         if not request.user.is_staff:
             allowed_fields = {'status'}
             if not set(request.data.keys()).issubset(allowed_fields):
-                return Response({'detail': 'Contributors can only update status.'}, status=status.HTTP_403_FORBIDDEN)
+                return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
         return super().partial_update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'detail': 'Only admins can delete tasks.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+    def create(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            return Response({'detail': 'Only admins can create tasks.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrReadOnly])
     def export(self, request):
@@ -90,7 +100,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ActivityLog.objects.all()
     serializer_class = ActivityLogSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAdminUser]
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
