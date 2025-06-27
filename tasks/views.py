@@ -12,6 +12,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
     def perform_destroy(self, instance):
         instance.is_deleted = True
         instance.save()
