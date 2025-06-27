@@ -39,7 +39,11 @@ SECRET_KEY = 'django-insecure-please-change-this-key'
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'django-activetask.onrender.com',
+    'localhost',
+    '127.0.0.1',
+]
 
 ROOT_URLCONF = 'assignmentt.urls'
 
