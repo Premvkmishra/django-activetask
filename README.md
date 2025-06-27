@@ -25,6 +25,33 @@
    python manage.py runserver
    ```
 
+## Deploying Django Backend to Render
+
+1. **Create a new Web Service** on Render and connect your repo.
+2. **Set the build and start commands:**
+   - **Build Command:**
+     ```
+     pip install -r requirements.txt
+     python manage.py migrate
+     ```
+   - **Start Command:**
+     ```
+     gunicorn assignmentt.wsgi:application
+     ```
+3. **Add environment variables** in Render dashboard:
+   - `DJANGO_SECRET_KEY` (set a strong secret key)
+   - `DJANGO_DEBUG` = False
+   - `ALLOWED_HOSTS` = your Render domain (e.g. `your-app.onrender.com`)
+   - `CORS_ALLOWED_ORIGINS` = your frontend URL (e.g. `https://active-task-view.lovable.app`)
+
+4. **Static files:**
+   - For production, configure static files with WhiteNoise or S3 (see Django docs).
+
+5. **Update your frontend `.env`** with the deployed backend URL:
+   ```
+   VITE_API_URL=https://your-app.onrender.com
+   ```
+
 ## API Endpoints
 
 ### Authentication
