@@ -26,6 +26,9 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [(IsAssignedContributor | IsAdminOrReadOnly)()]
+        if self.action in ['partial_update']:
+            # Only allow contributors to PATCH their own tasks
+            return [IsAssignedContributor() | IsAdminOrReadOnly()]
         return [IsAdminOrReadOnly()]
 
     def get_queryset(self):
@@ -37,6 +40,20 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.is_deleted = True
         instance.save()
+
+    def update(self, request, *args, **kwargs):
+        # Only admins can do full update
+        if not request.user.is_staff and request.method == 'PUT':
+            return Response({'detail': 'Only admins can fully update tasks.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        # Contributors can only PATCH status
+        if not request.user.is_staff:
+            allowed_fields = {'status'}
+            if not set(request.data.keys()).issubset(allowed_fields):
+                return Response({'detail': 'Contributors can only update status.'}, status=status.HTTP_403_FORBIDDEN)
+        return super().partial_update(request, *args, **kwargs)
 
     @action(detail=False, methods=['get'], permission_classes=[IsAdminOrReadOnly])
     def export(self, request):
