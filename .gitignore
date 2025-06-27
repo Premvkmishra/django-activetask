@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.env
+.env.*
+
+# Django
+/staticfiles/
+/media/
+*.pot
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# VSCode
+.vscode/
+
+# Node
+node_modules/
+*.log
+dist/
+bun.lockb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Virtualenv
+venv/
+ENV/
+
+# Misc
+*.swp
+*.swo
+.idea/
+*.bak
+
+# React
+active-task-view/node_modules/
+active-task-view/dist/
+active-task-view/.env 
