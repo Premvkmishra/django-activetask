@@ -6,7 +6,7 @@ def root(request):
     return JsonResponse({"message": "Django ActiveTask API is running."})
 
 urlpatterns = [
-      path('', root),
-      path('admin/', admin.site.urls),
-      path('api/', include('tasks.urls')),
-  ]
+    path('', root),
+    path('admin/', admin.site.urls),
+    path('api/', include('tasks.urls')),
+]
