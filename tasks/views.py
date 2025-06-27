@@ -1,11 +1,13 @@
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django.utils import timezone
 from datetime import timedelta
 from .models import Project, Task, ActivityLog
 from .serializers import ProjectSerializer, TaskSerializer, ActivityLogSerializer
 from .permissions import IsAdminOrReadOnly, IsAssignedContributor
+from django.contrib.auth.models import User
+from rest_framework import serializers, permissions
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_deleted=False)
@@ -88,4 +90,20 @@ class TaskViewSet(viewsets.ModelViewSet):
 class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ActivityLog.objects.all()
     serializer_class = ActivityLogSerializer
-    permission_classes = [IsAdminOrReadOnly] 
+    permission_classes = [IsAdminOrReadOnly]
+
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'username']
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def current_user(request):
+    serializer = UserSerializer(request.user)
+    return Response(serializer.data) 
