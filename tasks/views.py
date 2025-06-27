@@ -22,7 +22,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [IsAssignedContributor() | IsAdminOrReadOnly()]
+            return [(IsAssignedContributor | IsAdminOrReadOnly)()]
         return [IsAdminOrReadOnly()]
 
     def get_queryset(self):
