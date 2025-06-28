@@ -30,11 +30,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
-            return [permissions.IsAuthenticated]
+            return [permissions.IsAuthenticated()]
         if self.action in ['partial_update']:
             # Allow contributors to PATCH their own tasks, admins can PATCH any task
-            return [IsAssignedContributor | IsAdminOrReadOnly]
-        return [IsAdminOrReadOnly]
+            return [IsAssignedContributor() | IsAdminOrReadOnly()]
+        return [IsAdminOrReadOnly()]
 
     def get_queryset(self):
         user = self.request.user
