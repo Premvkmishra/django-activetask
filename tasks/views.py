@@ -8,6 +8,8 @@ from .serializers import ProjectSerializer, TaskSerializer, ActivityLogSerialize
 from .permissions import IsAdminOrReadOnly, IsAssignedContributor
 from django.contrib.auth.models import User
 from rest_framework import serializers, permissions
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_deleted=False)
@@ -116,4 +118,17 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
 @permission_classes([permissions.IsAuthenticated])
 def current_user(request):
     serializer = UserSerializer(request.user)
-    return Response(serializer.data) 
+    return Response(serializer.data)
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Add custom claims
+        data['is_staff'] = self.user.is_staff
+        data['is_superuser'] = self.user.is_superuser
+        data['username'] = self.user.username
+        data['user_id'] = self.user.id
+        return data
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    serializer_class = CustomTokenObtainPairSerializer 
