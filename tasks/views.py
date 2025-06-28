@@ -10,6 +10,7 @@ from django.contrib.auth.models import User
 from rest_framework import serializers, permissions
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import AccessToken
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_deleted=False)
@@ -120,21 +121,24 @@ def current_user(request):
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
+class CustomAccessToken(AccessToken):
+    def __init__(self, user=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if user:
+            self['is_staff'] = user.is_staff
+            self['is_superuser'] = user.is_superuser
+            self['username'] = user.username
+            self['user_id'] = user.id
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
         
-        # Add custom claims to the token payload
-        self.token['is_staff'] = self.user.is_staff
-        self.token['is_superuser'] = self.user.is_superuser
-        self.token['username'] = self.user.username
-        self.token['user_id'] = self.user.id
+        # Create a custom access token with additional claims
+        access_token = CustomAccessToken(user=self.user)
         
-        # Also add to response data for backward compatibility
-        data['is_staff'] = self.user.is_staff
-        data['is_superuser'] = self.user.is_superuser
-        data['username'] = self.user.username
-        data['user_id'] = self.user.id
+        # Replace the access token in the response
+        data['access'] = str(access_token)
         
         return data
 
