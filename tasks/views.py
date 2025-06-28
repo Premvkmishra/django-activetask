@@ -8,6 +8,7 @@ from .serializers import ProjectSerializer, TaskSerializer, ActivityLogSerialize
 from .permissions import IsAdminOrReadOnly, IsAssignedContributor
 from django.contrib.auth.models import User
 from rest_framework import serializers, permissions
+from rest_framework.permissions import OR
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import AccessToken
@@ -33,7 +34,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         if self.action in ['partial_update']:
             # Allow contributors to PATCH their own tasks, admins can PATCH any task
-            return [IsAssignedContributor() | IsAdminOrReadOnly()]
+            return [OR(IsAssignedContributor(), IsAdminOrReadOnly())]
         return [IsAdminOrReadOnly()]
 
     def get_queryset(self):
