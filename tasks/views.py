@@ -123,11 +123,19 @@ def current_user(request):
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        # Add custom claims
+        
+        # Add custom claims to the token payload
+        self.token['is_staff'] = self.user.is_staff
+        self.token['is_superuser'] = self.user.is_superuser
+        self.token['username'] = self.user.username
+        self.token['user_id'] = self.user.id
+        
+        # Also add to response data for backward compatibility
         data['is_staff'] = self.user.is_staff
         data['is_superuser'] = self.user.is_superuser
         data['username'] = self.user.username
         data['user_id'] = self.user.id
+        
         return data
 
 class CustomTokenObtainPairView(TokenObtainPairView):
