@@ -35,7 +35,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             return [permissions.IsAuthenticated()]
-        if self.action in ['partial_update']:
+        if self.action in ['partial_update', 'update_status']:
             # Allow contributors to PATCH their own tasks, admins can PATCH any task
             return [permissions.IsAuthenticated()]
         return [IsAdminOrReadOnly()]
@@ -67,43 +67,64 @@ class TaskViewSet(viewsets.ModelViewSet):
         Special endpoint for contributors to update their own task status.
         Only allows status updates for tasks assigned to the requesting user.
         """
+        print(f"=== UPDATE_STATUS ACTION CALLED ===")
+        print(f"Request method: {request.method}")
+        print(f"Request path: {request.path}")
+        print(f"User: {request.user.username} (ID: {request.user.id}, is_staff: {request.user.is_staff})")
+        print(f"Task ID: {pk}")
+        print(f"Request data: {request.data}")
+        
         try:
-            # Get the task instance
+            # Get the task instance using the filtered queryset
             task = self.get_object()
+            print(f"Task found: {task.id}, assigned_to: {task.assigned_to}")
             
             # Check if user is admin or assigned to the task
             if not request.user.is_staff:
                 # For contributors, check if they are assigned to this task
                 if task.assigned_to is None:
+                    print(f"Task {task.id} has no assigned_to, only admins can update")
                     return Response({'detail': 'Only admins can update unassigned tasks.'}, status=status.HTTP_403_FORBIDDEN)
                 
                 # Compare user IDs for safety
                 if task.assigned_to.id != request.user.id:
+                    print(f"User {request.user.username} (ID: {request.user.id}) not assigned to task {task.id} (assigned to: {task.assigned_to.username} (ID: {task.assigned_to.id}))")
                     return Response({'detail': 'You can only update tasks assigned to you.'}, status=status.HTTP_403_FORBIDDEN)
+                
+                print(f"User {request.user.username} is assigned to task {task.id}")
             
             # Validate that only status is being updated
             if not request.user.is_staff:
                 allowed_fields = {'status'}
                 if not set(request.data.keys()).issubset(allowed_fields):
+                    print(f"Non-admin user trying to update fields other than status: {request.data.keys()}")
                     return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
             
             # Validate status value
             new_status = request.data.get('status')
             if new_status not in ['TODO', 'IN_PROGRESS', 'DONE']:
+                print(f"Invalid status value: {new_status}")
                 return Response({'detail': 'Invalid status value.'}, status=status.HTTP_400_BAD_REQUEST)
             
             # Update the task status
             old_status = task.status
             task.status = new_status
             task.save()
+            print(f"Task status updated from {old_status} to {new_status}")
             
-            # Create activity log for status change
-            ActivityLog.objects.create(
-                task=task,
-                previous_assignee=task.assigned_to,
-                previous_status=old_status,
-                previous_due_date=task.due_date
-            )
+            # Create activity log for status change (only if status actually changed)
+            if old_status != new_status:
+                try:
+                    ActivityLog.objects.create(
+                        task=task,
+                        previous_assignee=task.assigned_to,
+                        previous_status=old_status,
+                        previous_due_date=task.due_date
+                    )
+                    print(f"Activity log created for status change")
+                except Exception as log_error:
+                    # Don't fail the whole request if activity log creation fails
+                    print(f"Failed to create activity log: {log_error}")
             
             return Response({
                 'detail': 'Task status updated successfully',
@@ -113,6 +134,9 @@ class TaskViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
+            print(f"Error in update_status: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return Response({'detail': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def partial_update(self, request, *args, **kwargs):
@@ -209,6 +233,31 @@ class TaskViewSet(viewsets.ModelViewSet):
             'overdue': TaskSerializer(tasks_overdue, many=True).data,
             'completed_recently': TaskSerializer(tasks_completed, many=True).data
         })
+
+    @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def test(self, request):
+        """
+        Simple test endpoint to verify the server is working.
+        """
+        return Response({
+            'message': 'Task API is working correctly',
+            'user': request.user.username,
+            'is_staff': request.user.is_staff,
+            'timestamp': timezone.now().isoformat()
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    def test_action(self, request, pk=None):
+        """
+        Simple test action to verify action routing is working.
+        """
+        return Response({
+            'message': 'Action routing is working',
+            'action': 'test_action',
+            'task_id': pk,
+            'user': request.user.username,
+            'is_staff': request.user.is_staff,
+        }, status=status.HTTP_200_OK)
 
 class ActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ActivityLog.objects.all()
