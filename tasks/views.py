@@ -48,12 +48,19 @@ class TaskViewSet(viewsets.ModelViewSet):
         instance.save()
 
     def update(self, request, *args, **kwargs):
-        # Only admins can do full update
+        print(f"UPDATE method called with HTTP method: {request.method}")
+        
+        # If it's a PATCH request, handle it as partial_update
+        if request.method == 'PATCH':
+            return self.partial_update(request, *args, **kwargs)
+        
+        # Only admins can do full update (PUT requests)
         if not request.user.is_staff:
             return Response({'detail': 'Only admins can fully update tasks.'}, status=status.HTTP_403_FORBIDDEN)
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
+        print(f"PARTIAL_UPDATE method called with HTTP method: {request.method}")
         # Get the task instance
         instance = self.get_object()
         
