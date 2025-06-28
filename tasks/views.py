@@ -225,13 +225,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             due_date__gte=timezone.now() - timedelta(hours=24)
         )
 
-        # Fix the union query - use distinct() to avoid duplicates
-        all_tasks = tasks_due_soon.union(tasks_overdue, tasks_completed).distinct()
+        # Use union without distinct() - Django will handle duplicates automatically
+        all_tasks = tasks_due_soon.union(tasks_overdue, tasks_completed)
         
         return Response({
             'due_soon': TaskSerializer(tasks_due_soon, many=True).data,
             'overdue': TaskSerializer(tasks_overdue, many=True).data,
-            'completed_recently': TaskSerializer(tasks_completed, many=True).data
+            'completed_recently': TaskSerializer(tasks_completed, many=True).data,
+            'all_tasks': TaskSerializer(all_tasks, many=True).data
         })
 
     @action(detail=False, methods=['get'], permission_classes=[permissions.IsAuthenticated])
