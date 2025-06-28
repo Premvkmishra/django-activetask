@@ -60,18 +60,8 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         try:
-            # Get the task instance
+            # Get the task instance using the filtered queryset
             instance = self.get_object()
-            
-            # Check if user is admin or assigned to the task
-            if not request.user.is_staff:
-                # For contributors, check if they are assigned to this task
-                if instance.assigned_to is None:
-                    return Response({'detail': 'Only admins can update unassigned tasks.'}, status=status.HTTP_403_FORBIDDEN)
-                
-                # Compare user IDs for safety
-                if instance.assigned_to.id != request.user.id:
-                    return Response({'detail': 'You can only update tasks assigned to you.'}, status=status.HTTP_403_FORBIDDEN)
             
             # If user is not admin, only allow status updates
             if not request.user.is_staff:
