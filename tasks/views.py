@@ -61,6 +61,60 @@ class TaskViewSet(viewsets.ModelViewSet):
         
         return super().update(request, *args, **kwargs)
 
+    @action(detail=True, methods=['patch'], permission_classes=[permissions.IsAuthenticated])
+    def update_status(self, request, pk=None):
+        """
+        Special endpoint for contributors to update their own task status.
+        Only allows status updates for tasks assigned to the requesting user.
+        """
+        try:
+            # Get the task instance
+            task = self.get_object()
+            
+            # Check if user is admin or assigned to the task
+            if not request.user.is_staff:
+                # For contributors, check if they are assigned to this task
+                if task.assigned_to is None:
+                    return Response({'detail': 'Only admins can update unassigned tasks.'}, status=status.HTTP_403_FORBIDDEN)
+                
+                # Compare user IDs for safety
+                if task.assigned_to.id != request.user.id:
+                    return Response({'detail': 'You can only update tasks assigned to you.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Validate that only status is being updated
+            if not request.user.is_staff:
+                allowed_fields = {'status'}
+                if not set(request.data.keys()).issubset(allowed_fields):
+                    return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            # Validate status value
+            new_status = request.data.get('status')
+            if new_status not in ['TODO', 'IN_PROGRESS', 'DONE']:
+                return Response({'detail': 'Invalid status value.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update the task status
+            old_status = task.status
+            task.status = new_status
+            task.save()
+            
+            # Create activity log for status change
+            ActivityLog.objects.create(
+                task=task,
+                previous_assignee=task.assigned_to,
+                previous_status=old_status,
+                previous_due_date=task.due_date
+            )
+            
+            return Response({
+                'detail': 'Task status updated successfully',
+                'task_id': task.id,
+                'old_status': old_status,
+                'new_status': new_status
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'detail': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def partial_update(self, request, *args, **kwargs):
         try:
             # Log the request for debugging
