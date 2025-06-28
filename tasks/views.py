@@ -61,20 +61,68 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         print(f"PARTIAL_UPDATE method called with HTTP method: {request.method}")
-        # Get the task instance
-        instance = self.get_object()
+        print(f"Request path: {request.path}")
+        print(f"Request user: {request.user.username} (ID: {request.user.id}, is_staff: {request.user.is_staff})")
+        print(f"Request data: {request.data}")
+        print(f"Request content type: {request.content_type}")
         
-        # Check if user is admin or assigned to the task
-        if not request.user.is_staff and instance.assigned_to != request.user:
-            return Response({'detail': 'You can only update tasks assigned to you.'}, status=status.HTTP_403_FORBIDDEN)
-        
-        # If user is not admin, only allow status updates
-        if not request.user.is_staff:
-            allowed_fields = {'status'}
-            if not set(request.data.keys()).issubset(allowed_fields):
-                return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
-        
-        return super().partial_update(request, *args, **kwargs)
+        try:
+            # Get the task instance
+            instance = self.get_object()
+            print(f"Task instance: {instance.id}")
+            print(f"Task assigned_to: {instance.assigned_to}")
+            print(f"Task assigned_to type: {type(instance.assigned_to)}")
+            if instance.assigned_to:
+                print(f"Task assigned_to username: {instance.assigned_to.username}")
+                print(f"Task assigned_to ID: {instance.assigned_to.id}")
+            
+            # Check if user is admin or assigned to the task
+            if not request.user.is_staff:
+                # For contributors, check if they are assigned to this task
+                if instance.assigned_to is None:
+                    # If task has no assigned_to, only admins can update
+                    print(f"Task {instance.id} has no assigned_to, only admins can update")
+                    return Response({'detail': 'Only admins can update unassigned tasks.'}, status=status.HTTP_403_FORBIDDEN)
+                
+                # Compare user IDs for safety
+                try:
+                    assigned_user_id = instance.assigned_to.id
+                    request_user_id = request.user.id
+                    print(f"Comparing assigned_user_id: {assigned_user_id} with request_user_id: {request_user_id}")
+                    
+                    if assigned_user_id != request_user_id:
+                        print(f"User {request.user.username} (ID: {request_user_id}) not assigned to task {instance.id} (assigned to: {instance.assigned_to.username} (ID: {assigned_user_id}))")
+                        return Response({'detail': 'You can only update tasks assigned to you.'}, status=status.HTTP_403_FORBIDDEN)
+                except AttributeError as e:
+                    print(f"Error accessing user ID: {e}")
+                    return Response({'detail': 'Error accessing task assignment information.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                print(f"User {request.user.username} is assigned to task {instance.id}")
+            
+            # If user is not admin, only allow status updates
+            if not request.user.is_staff:
+                allowed_fields = {'status'}
+                request_fields = set(request.data.keys())
+                print(f"Non-admin user requesting fields: {request_fields}")
+                print(f"Allowed fields: {allowed_fields}")
+                
+                if not request_fields.issubset(allowed_fields):
+                    print(f"Non-admin user trying to update fields other than status: {request_fields}")
+                    return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            print(f"Proceeding with update for task {instance.id}")
+            print(f"Calling parent partial_update with data: {request.data}")
+            
+            # Call the parent method
+            result = super().partial_update(request, *args, **kwargs)
+            print(f"Parent partial_update completed successfully")
+            return result
+            
+        except Exception as e:
+            print(f"Error in partial_update: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return Response({'detail': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def destroy(self, request, *args, **kwargs):
         if not request.user.is_staff:
