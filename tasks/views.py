@@ -8,10 +8,13 @@ from .serializers import ProjectSerializer, TaskSerializer, ActivityLogSerialize
 from .permissions import IsAdminOrReadOnly, IsAssignedContributor
 from django.contrib.auth.models import User
 from rest_framework import serializers, permissions
-from rest_framework.permissions import OR
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import AccessToken
+import logging
+
+# Add logging for debugging
+logger = logging.getLogger(__name__)
 
 class ProjectViewSet(viewsets.ModelViewSet):
     queryset = Project.objects.filter(is_deleted=False)
@@ -60,20 +63,59 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         try:
+            # Log the request for debugging
+            logger.info(f"User {request.user.username} attempting to update task {kwargs.get('pk')} with data: {request.data}")
+            
             # Get the task instance using the filtered queryset
             instance = self.get_object()
+            
+            # Log the instance found
+            logger.info(f"Found task: {instance.id}, assigned to: {instance.assigned_to}")
             
             # If user is not admin, only allow status updates
             if not request.user.is_staff:
                 allowed_fields = {'status'}
                 if not set(request.data.keys()).issubset(allowed_fields):
-                    return Response({'detail': 'Only admins can update fields other than status.'}, status=status.HTTP_403_FORBIDDEN)
+                    logger.warning(f"User {request.user.username} tried to update forbidden fields: {request.data.keys()}")
+                    return Response(
+                        {'detail': 'Only admins can update fields other than status.'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                
+                # Additional check: ensure user is assigned to this task
+                if instance.assigned_to != request.user:
+                    logger.warning(f"User {request.user.username} tried to update task not assigned to them")
+                    return Response(
+                        {'detail': 'You can only update tasks assigned to you.'}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+            
+            # Validate the status value if provided
+            if 'status' in request.data:
+                valid_statuses = ['TODO', 'IN_PROGRESS', 'DONE']  # Adjust based on your model
+                if request.data['status'] not in valid_statuses:
+                    return Response(
+                        {'detail': f'Invalid status. Must be one of: {valid_statuses}'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             
             # Call the parent method
-            return super().partial_update(request, *args, **kwargs)
+            response = super().partial_update(request, *args, **kwargs)
+            logger.info(f"Task {instance.id} updated successfully")
+            return response
             
+        except Task.DoesNotExist:
+            logger.error(f"Task {kwargs.get('pk')} not found for user {request.user.username}")
+            return Response(
+                {'detail': 'Task not found or you do not have permission to update it.'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
-            return Response({'detail': f'Server error: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Error updating task {kwargs.get('pk')}: {str(e)}", exc_info=True)
+            return Response(
+                {'detail': f'Server error: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         if not request.user.is_staff:
@@ -105,10 +147,9 @@ class TaskViewSet(viewsets.ModelViewSet):
             due_date__gte=timezone.now() - timedelta(hours=24)
         )
 
-        serializer = TaskSerializer(
-            tasks_due_soon.union(tasks_overdue, tasks_completed),
-            many=True
-        )
+        # Fix the union query - use distinct() to avoid duplicates
+        all_tasks = tasks_due_soon.union(tasks_overdue, tasks_completed).distinct()
+        
         return Response({
             'due_soon': TaskSerializer(tasks_due_soon, many=True).data,
             'overdue': TaskSerializer(tasks_overdue, many=True).data,
@@ -136,26 +177,18 @@ def current_user(request):
     serializer = UserSerializer(request.user)
     return Response(serializer.data)
 
-class CustomAccessToken(AccessToken):
-    def __init__(self, user=None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if user:
-            self['is_staff'] = user.is_staff
-            self['is_superuser'] = user.is_superuser
-            self['username'] = user.username
-            self['user_id'] = user.id
-
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        data = super().validate(attrs)
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
         
-        # Create a custom access token with additional claims
-        access_token = CustomAccessToken(user=self.user)
+        # Add custom claims to token
+        token['is_staff'] = user.is_staff
+        token['is_superuser'] = user.is_superuser
+        token['username'] = user.username
+        token['user_id'] = user.id
         
-        # Replace the access token in the response
-        data['access'] = str(access_token)
-        
-        return data
+        return token
 
 class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer 
+    serializer_class = CustomTokenObtainPairSerializer
